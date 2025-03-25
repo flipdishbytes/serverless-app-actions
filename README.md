@@ -5,8 +5,6 @@ This custom GitHub Action were created to simplify serverles-app-template reposi
 
 ### How to use?
 
-#### `flipdishbytes/aws-accounts-ci@v1.0`
-
 ```yaml
 name: GH Action workflow example
 
