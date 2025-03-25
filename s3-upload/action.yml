@@ -1,0 +1,39 @@
+name: AWS S3 Upload
+description: Upload files to an S3 bucket with cache control
+inputs:
+  bucket-url:
+    required: true
+    description: The S3 bucket URL to upload to
+  invalidate-url:
+    required: true
+    description: The S3 bucket URL to invalidate
+  distribution-id:
+    required: true
+    description: The CloudFront distribution ID
+  working-directory:
+    required: true
+    description: The directory containing files to upload
+  cache-duration:
+    required: false
+    default: '86400'
+    description: Cache duration in seconds 
+runs:
+  using: composite
+  steps:
+    - name: Upload to S3 Bucket
+      shell: bash
+      run: |
+        # First sync everything except manifest.json
+        aws s3 sync --delete . s3://${{ inputs.bucket-url }} \
+          --exclude '.vite/manifest.json' \
+          --cache-control 'public,max-age=${{ inputs.cache-duration }}'
+        
+        # Then sync manifest.json with no-cache headers
+        aws s3 cp ./.vite/manifest.json s3://${{ inputs.bucket-url }}/.vite/manifest.json --cache-control 'max-age=0, must-revalidate, s-maxage=${{ inputs.cache-duration }}'
+      working-directory: ${{ inputs.working-directory }}
+    - name: Invalidate CloudFront
+      shell: bash
+      run: aws cloudfront create-invalidation --distribution-id $DISTRIBUTION_ID --paths "$INVALIDATE_URL"
+      env:
+        INVALIDATE_URL: ${{ inputs.invalidate-url }}
+        DISTRIBUTION_ID: ${{ inputs.distribution-id }}

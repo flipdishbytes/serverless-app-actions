@@ -1,0 +1,26 @@
+name: AWS S3 Upload
+description: Upload files to an S3 bucket with cache control
+inputs:
+  bucket-url:
+    required: true
+    description: The S3 bucket URL to upload to
+  invalidate-url:
+    required: true
+    description: The S3 bucket URL to invalidate
+  distribution-id:
+    required: true
+    description: The CloudFront distribution ID
+runs:
+  using: composite
+  steps:
+    - name: Remove from S3 Bucket
+      shell: bash
+      run: aws s3 rm --recursive s3://$BUCKET_URL
+      env:
+        BUCKET_URL: ${{ inputs.bucket-url }}
+    - name: Invalidate CloudFront
+      shell: bash
+      run: aws cloudfront create-invalidation --distribution-id $DISTRIBUTION_ID --paths "$INVALIDATE_URL"
+      env:
+        INVALIDATE_URL: ${{ inputs.invalidate-url }}
+        DISTRIBUTION_ID: ${{ inputs.distribution-id }}
