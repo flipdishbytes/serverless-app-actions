@@ -1,0 +1,33 @@
+name: Validate OpenApi spec
+description: Read SST API URL and validate OpenApi spec
+inputs:
+  openapi-url:
+    description: OpenApi URL
+    required: true
+    default: /serverless-app-template/openapi.yaml
+runs:
+  using: composite
+  steps:
+    - name: Read SST API URL
+      shell: bash
+      id: sst-url
+      run: |
+        API_URL=$(pnpm output:read | tail -n 1 | tr -d '[:space:]')
+        # Remove trailing slash if present
+        API_URL=${API_URL%/}
+        if [[ -z "$API_URL" ]]; then
+          echo "API_URL is empty. Exiting..."
+          exit 1
+        fi
+        echo "API_URL=$API_URL" >> "$GITHUB_OUTPUT"
+    - name: Wait for SST API URL
+      shell: bash
+      run: |
+        chmod +x .github/scripts/url-check.sh
+        .github/scripts/url-check.sh
+      env:
+        URL: ${{ steps.sst-url.outputs.API_URL }}
+    - name: Validate OpenApi spec
+      uses: readmeio/rdme@v8
+      with:
+        rdme: openapi:validate ${{ steps.sst-url.outputs.API_URL }}${{ inputs.openapi-url }}

@@ -1,0 +1,35 @@
+name: Setup pnpm and Install Modules
+description: Setup pnpm and install modules with using cache
+inputs:
+  node-version:
+    description: NodeJS version
+    required: false
+    default: '22'
+runs:
+  using: composite
+  steps:
+    - name: Use Node v. ${{ inputs.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v3
+      with:
+        version: latest
+        run_install: false
+    - name: Get pnpm store directory
+      shell: bash
+      run: |
+        echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+    - name: Cache pnpm modules
+      uses: actions/cache@v4
+      env:
+        cache-name: cache-pnpm-modules
+      with:
+        path: ${{ env.STORE_PATH }}
+        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/package.json') }}
+        restore-keys: |
+          ${{ runner.os }}-build-${{ env.cache-name }}-
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install

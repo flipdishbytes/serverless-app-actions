@@ -1,0 +1,28 @@
+name: Assume role using OIDC
+description: Reads AWS Account ID from S3 Bucket JSON file and assumes role using OIDC
+inputs:
+  workload_name:
+    description: AWS Account Workload name
+    required: true
+  ou_name:
+    description: AWS Account Organizational Unit name
+    required: true
+  aws-region:
+    description: AWS Region
+    required: false
+    default: eu-west-1
+runs:
+  using: composite
+  steps:
+    - name: Read AWS Account Id
+      id: account_id
+      uses: flipdishbytes/aws-accounts-ci@v1.0
+      continue-on-error: false
+      with:
+        workload_name: ${{ inputs.workload_name }}
+        ou_name: ${{ inputs.ou_name }}
+    - name: Assume role using OIDC
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: 'arn:aws:iam::${{ steps.account_id.outputs.accountId }}:role/github-ci-${{ inputs.ou_name }}-role'
+        aws-region: ${{ inputs.aws-region }}
