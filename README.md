@@ -37,7 +37,7 @@ jobs:
       - name: Install dependencies
         uses: flipdishbytes/serverless-app-actions/setup-pnpm-and-install-modules@v1.0
         # with:
-        #   node-version: 20 ### use is if you need different NodeJS version 922 is by default)
+        #   node-version: 20 ### use is if you need different NodeJS version (22 is by default)
       - name: Deploy
         run: pnpm sst deploy
       - name: Validate OpenApi spec
