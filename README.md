@@ -1,8 +1,9 @@
 # Purpose
+
 This custom GitHub Action were created to simplify serverles-app-template repository workflows.
 
+## How to use?
 
-### How to use?
 ```yaml
 name: GH Action workflow example
 
@@ -42,7 +43,6 @@ jobs:
         uses: flipdishbytes/serverless-app-actions/validate-openapi-spec@v1.0
         with:
           openapi-url: /serverless-app-template/openapi.yaml
-
       ...
       - name: Generate Bucket variables
         id: variables
@@ -64,4 +64,19 @@ jobs:
           distribution-id: ${{ steps.variables.outputs.distributionId }}
           working-directory: packages/frontend/dist
           cache-duration: '86400'
+      ...
+      - name: Running WDIO Tests
+        run: pnpm wdio:local:headless:frontend
+        env:
+          PORTAL_URL: 'https://prod-staging.portal.flipdishdev.com'
+          MICROFRONTEND_INDEX_URL: '${{ needs.integration-mf-deploy.outputs.distributionUrl }}assets/index.js'
+      - name: Publish Test Results
+        uses: flipdishbytes/serverless-app-actions/publish-wdio-results@v1.0
+        if: success() || failure()
+        continue-on-error: true
+        with:
+          files: |
+            packages/frontend/e2e/wdio/reports/junit-results/*.xml
+          allure_results: packages/frontend/e2e/wdio/reports/allure-results
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 ```
