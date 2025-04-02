@@ -5,6 +5,10 @@ inputs:
     description: OpenApi URL
     required: true
     default: /serverless-app-template/openapi.yaml
+  retries:
+    description: Number of retries
+    required: false
+    default: '4'
 runs:
   using: composite
   steps:
@@ -23,10 +27,11 @@ runs:
     - name: Wait for SST API URL
       shell: bash
       run: |
-        chmod +x .github/scripts/url-check.sh
-        .github/scripts/url-check.sh
+        chmod +x ${{ github.action_path }}/url-check.sh
+        ${{ github.action_path }}/url-check.sh
       env:
-        URL: ${{ steps.sst-url.outputs.API_URL }}
+        URL: ${{ steps.sst-url.outputs.API_URL }}${{ inputs.openapi-url }}
+        MAX_RETRIES: ${{ inputs.retries }}
     - name: Validate OpenApi spec
       uses: readmeio/rdme@v8
       with:
