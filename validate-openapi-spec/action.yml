@@ -1,6 +1,9 @@
-name: Validate OpenApi spec
+name: Validate OpenApi spec with optional stack selection
 description: Read SST API URL and validate OpenApi spec
 inputs:
+  stack-name:
+    description: SST Stack name to get API URL from (optional - if not provided, returns first available API URL)
+    required: false
   openapi-url:
     description: OpenApi URL
     required: true
@@ -12,18 +15,25 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Read SST API URL
+    - name: Read SST API URL for stack
       shell: bash
       id: sst-url
       run: |
-        API_URL=$(pnpm output:read | tail -n 1 | tr -d '[:space:]')
+        if [[ -n "${{ inputs.stack-name }}" ]]; then
+          API_URL=$(STACK_NAME="${{ inputs.stack-name }}" pnpm output:read | tail -n 1 | tr -d '[:space:]')
+          STACK_INFO="for stack ${{ inputs.stack-name }}"
+        else
+          API_URL=$(pnpm output:read | tail -n 1 | tr -d '[:space:]')
+          STACK_INFO="(first available)"
+        fi
         # Remove trailing slash if present
         API_URL=${API_URL%/}
         if [[ -z "$API_URL" ]]; then
-          echo "API_URL is empty. Exiting..."
+          echo "API_URL is empty ${STACK_INFO}. Exiting..."
           exit 1
         fi
         echo "API_URL=$API_URL" >> "$GITHUB_OUTPUT"
+        echo "Found API URL ${STACK_INFO}: $API_URL"
     - name: Wait for SST API URL
       shell: bash
       run: |
@@ -35,4 +45,4 @@ runs:
     - name: Validate OpenApi spec
       uses: readmeio/rdme@v8
       with:
-        rdme: openapi:validate ${{ steps.sst-url.outputs.API_URL }}${{ inputs.openapi-url }}
+        rdme: openapi:validate ${{ steps.sst-url.outputs.API_URL }}${{ inputs.openapi-url }} 
