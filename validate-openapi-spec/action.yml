@@ -7,7 +7,7 @@ inputs:
   openapi-url:
     description: OpenApi URL
     required: true
-    default: /serverless-app-template/openapi.yaml
+    default: /openapi.yaml
   retries:
     description: Number of retries
     required: false

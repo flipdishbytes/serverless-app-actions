@@ -42,7 +42,7 @@ jobs:
       - name: Validate OpenApi spec
         uses: flipdishbytes/serverless-app-actions/validate-openapi-spec@v1.3
         with:
-          openapi-url: /serverless-app-template/openapi.yaml
+          openapi-url: /openapi.yaml
           # retries: 4 # four openapi-url retries by default with 15 seconds delay before open-api check run
       ...
       - name: Generate Bucket variables
