@@ -13,7 +13,7 @@ fi
 
 echo "Waiting for $URL to be available..."
 while true; do
-    HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 "$URL" || echo "000")
+    HTTP_STATUS=$(curl --silent --location --output /dev/null --write-out "%{http_code}" --connect-timeout 5 "$URL" || echo "000")
 
     if [[ "$HTTP_STATUS" == "200" || "$HTTP_STATUS" == "301" ]]; then
         echo "SST API URL is available."
