@@ -13,6 +13,10 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Cleanup
+      shell: bash
+      run: |
+        rm -rf .conclusion
     - name: Publish Test Results
       id: test-results
       if: always()
