@@ -43,6 +43,7 @@ runs:
         URL: ${{ steps.sst-url.outputs.API_URL }}${{ inputs.openapi-url }}
         MAX_RETRIES: ${{ inputs.retries }}
     - name: Validate OpenApi spec
-      uses: readmeio/rdme@v8
-      with:
-        rdme: openapi:validate ${{ steps.sst-url.outputs.API_URL }}${{ inputs.openapi-url }} 
+      shell: bash
+      run: |
+        chmod +x .github/scripts/openapi-check.sh
+        .github/scripts/openapi-check.sh
