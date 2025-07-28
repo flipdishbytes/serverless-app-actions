@@ -83,3 +83,51 @@ runs:
         github_token: ${{ inputs.github_token }}
         publish_branch: gh-pages
         publish_dir: allure-history
+    - name: Comment GitHub Pages URL
+      if: github.event_name == 'pull_request' && steps.test-conclusion.outputs.conclusion != 'success'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          // For PRs, use the run number in the URL
+          const allureUrl = `https://${context.repo.owner}.github.io/${context.repo.repo}/${process.env.RUN_NUMBER}/index.html`;
+          
+          // Create comment body
+          const commentBody = `## 🧪 WDIO Test Results
+          
+          Tests failed! 📊 View the detailed Allure report here:
+          
+          🔗 **Allure Report**: ${allureUrl}
+          
+          This report contains detailed test results, screenshots, and execution history.`;
+          
+          // Find existing comment from this workflow
+          const comments = await github.rest.issues.listComments({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo
+          });
+          
+          const existingComment = comments.data.find(comment => 
+            comment.user.login === 'github-actions[bot]' && 
+            comment.body.includes('## 🧪 WDIO Test Results')
+          );
+          
+          if (existingComment) {
+            // Update existing comment
+            await github.rest.issues.updateComment({
+              comment_id: existingComment.id,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: commentBody
+            });
+          } else {
+            // Create new comment
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: commentBody
+            });
+          }
+      env:
+        RUN_NUMBER: ${{ github.run_number }}

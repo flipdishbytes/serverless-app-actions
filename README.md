@@ -1,6 +1,8 @@
 # Purpose
 
-This custom GitHub Action were created to simplify serverles-app-template repository workflows.
+This custom GitHub Actions were created to simplify serverless-app-template repository workflows.
+
+**Note**: Updates to these actions automatically propagate to the `flipdishbytes/serverless-app-actions` repository, which is used by other projects. Changes made here will be available to all repositories using the centralized actions. See [ADR-0050](../doc/adr/0050-use-github-composite-actions.md) for more details.
 
 ## How to use?
 
