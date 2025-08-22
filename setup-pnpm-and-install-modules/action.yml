@@ -32,4 +32,4 @@ runs:
           ${{ runner.os }}-build-${{ env.cache-name }}-
     - name: Install dependencies
       shell: bash
-      run: pnpm install --no-frozen-lockfile
+      run: pnpm install
