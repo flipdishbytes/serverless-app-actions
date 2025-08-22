@@ -1,0 +1,36 @@
+name: Validate and Publish OpenAPI Spec
+description: Validates OpenAPI spec using Spectral and publishes to ReadMe
+inputs:
+  openapi-file:
+    description: Path to the OpenAPI specification file
+    required: true
+  readme-api-key:
+    description: ReadMe API key for publishing (optional - defaults to Flipdish Readme API key)
+    required: false
+  spectral-rules:
+    description: Path to custom Spectral rules file (optional - defaults to Flipdish rules)
+    required: false
+runs:
+  using: composite
+  steps:
+    - name: Download default Spectral rules
+      if: ${{ !inputs.spectral-rules }}
+      shell: bash
+      run: |
+        curl -o .spectral.yaml https://raw.githubusercontent.com/flipdishbytes/spectral-rules/main/.spectral.yaml
+
+    - name: Lint OpenAPI with Spectral
+      uses: stoplightio/spectral-action@v0.8.11
+      with:
+        file_glob: ${{ inputs.openapi-file }}
+        spectral_ruleset: ${{ inputs.spectral-rules || '.spectral.yaml' }}
+
+    - name: Validate OpenAPI spec with ReadMe
+      uses: readmeio/rdme@v10
+      with:
+        rdme: openapi validate ${{ inputs.openapi-file }}
+
+    - name: Publish to ReadMe
+      uses: readmeio/rdme@v10
+      with:
+        rdme: openapi upload ${{ inputs.openapi-file }} --key=${{ inputs.readme-api-key }} 

@@ -1,0 +1,21 @@
+name: Validate and Publish OpenAPI Spec
+
+on:
+  push:
+    branches:
+      - add-new-gha-action-for-publishing-to-readme
+  workflow_dispatch:  # allows manual triggering
+
+jobs:
+  validate-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate and Publish OpenAPI
+        uses: ./publish-openapi
+        with:
+          openapi-file: https://api.portal.flipdish.com/menuManagement/openapi.json  # Update this path to your OpenAPI spec file
+          readme-api-key: ${{ secrets.README_API_KEY }}
+          # spectral-rules: '.spectral.yaml'  # Uncomment if you want to use custom rules 
