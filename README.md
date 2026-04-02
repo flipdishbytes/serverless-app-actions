@@ -1,8 +1,15 @@
 # Purpose
 
-This custom GitHub Actions were created to simplify serverless-app-template repository workflows.
+This repository publishes reusable GitHub composite actions used by serverless app workflows (for example in `flipdishbytes/serverless-app-template` and other consumers).
 
-**Note**: Updates to these actions automatically propagate to the `flipdishbytes/serverless-app-actions` repository, which is used by other projects. Changes made here will be available to all repositories using the centralized actions. See [ADR-0050](../doc/adr/0050-use-github-composite-actions.md) for more details.
+## Source of truth — do not edit this repository
+
+**This repository is updated automatically from the canonical copy in [`flipdishbytes/serverless-app-template`](https://github.com/flipdishbytes/serverless-app-template/tree/main/.github/actions) (`main` branch, `.github/actions`).**
+
+- **Do not open pull requests or push changes here** to modify the actions. They will be overwritten by the sync from the template repository.
+- **Make all changes in `serverless-app-template`** under `.github/actions`, **test them there**, and let the automated process publish them to this repository.
+
+For background on why actions live in the template first and how versioning works, see [ADR 50 — Use GitHub composite actions](../doc/adr/0050-use-github-composite-actions.md).
 
 ## How to use?
 
