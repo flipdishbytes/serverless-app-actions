@@ -15,7 +15,20 @@ runs:
     - name: Upgrade npm
       continue-on-error: true
       shell: bash
-      run: npm install -g npm@^11.5.1
+      run: |
+        REQUIRED="11.5.1"
+        CURRENT="$(npm --version)"
+        if [ "$CURRENT" = "$REQUIRED" ]; then
+          echo "npm ${CURRENT} meets minimum ${REQUIRED}; skipping upgrade."
+          exit 0
+        fi
+        LOW="$(printf '%s\n' "$REQUIRED" "$CURRENT" | sort -V | head -n1)"
+        if [ "$LOW" = "$CURRENT" ]; then
+          echo "npm ${CURRENT} is below ${REQUIRED}; installing npm@${REQUIRED}..."
+          npm install -g "npm@${REQUIRED}"
+        else
+          echo "npm ${CURRENT} is already >= ${REQUIRED}; skipping upgrade."
+        fi
     - name: Setup pnpm
       uses: pnpm/action-setup@v3
       with:
