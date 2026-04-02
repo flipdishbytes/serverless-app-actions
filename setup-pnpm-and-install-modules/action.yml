@@ -13,6 +13,7 @@ runs:
       with:
         node-version: ${{ inputs.node-version }}
     - name: Upgrade npm
+      continue-on-error: true
       shell: bash
       run: npm install -g npm@^11.5.1
     - name: Setup pnpm
