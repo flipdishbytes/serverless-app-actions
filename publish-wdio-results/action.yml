@@ -18,7 +18,7 @@ runs:
       run: |
         rm -rf .conclusion
     - name: Upload Test Results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: test-results
         path: ${{ inputs.files }}
@@ -64,7 +64,7 @@ runs:
         fi
     - name: Load Allure report history
       if: steps.test-conclusion.outputs.conclusion != 'success'
-      uses: actions/checkout@v3
+      uses: actions/checkout@v6
       with:
         ref: gh-pages
         path: gh-pages
