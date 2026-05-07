@@ -16,7 +16,7 @@ runs:
   steps:
     - name: Read AWS Account Id
       id: account_id
-      uses: flipdishbytes/aws-accounts-ci@v1.0
+      uses: flipdishbytes/aws-accounts-ci@v1.1
       continue-on-error: false
       with:
         workload_name: ${{ inputs.workload_name }}
