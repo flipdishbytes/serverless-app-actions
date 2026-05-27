@@ -5,6 +5,10 @@ inputs:
     description: NodeJS version
     required: false
     default: '22'
+  pnpm-version:
+    description: pnpm version
+    required: false
+    default: '10'
 runs:
   using: composite
   steps:
@@ -30,9 +34,9 @@ runs:
           echo "npm ${CURRENT} is already >= ${REQUIRED}; skipping upgrade."
         fi
     - name: Setup pnpm
-      uses: pnpm/action-setup@v5
+      uses: pnpm/action-setup@v6
       with:
-        version: 10
+        version: ${{ inputs.pnpm-version }}
         run_install: false
     - name: Get pnpm store directory
       shell: bash
