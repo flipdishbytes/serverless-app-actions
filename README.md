@@ -56,10 +56,10 @@ jobs:
       ...
       - name: Generate Bucket variables
         id: variables
-        run: pnpm variables:generate:frontend
-        env:
-          SST_STAGE: PR-${{ github.event.number }}
-          APP_NAME: authorization
+        uses: flipdishbytes/serverless-app-actions/generate-bucket-variables@v1.3
+        with:
+          sst-stage: PR-${{ github.event.number }}
+          app-name: authorization
       - name: Build Frontend
         run: pnpm build:frontend
         env:

@@ -1,0 +1,56 @@
+name: Generate Bucket variables
+description: Resolve Portal microfrontend S3 bucket and CloudFront settings for the current stage
+inputs:
+  sst-stage:
+    required: false
+    description: SST stage (defaults to SST_STAGE from the calling job when omitted)
+    default: ''
+  app-name:
+    required: false
+    description: Microfrontend app name (defaults to APP_NAME from the calling job, then local)
+    default: ''
+  workload-name:
+    required: false
+    description: Workload name (defaults to WORKLOAD_NAME from the calling job, then clients)
+    default: ''
+outputs:
+  domainName:
+    description: CloudFront distribution domain name
+    value: ${{ steps.generate.outputs.domainName }}
+  bucketName:
+    description: S3 bucket name
+    value: ${{ steps.generate.outputs.bucketName }}
+  bucketUploadUrl:
+    description: S3 object prefix for uploads
+    value: ${{ steps.generate.outputs.bucketUploadUrl }}
+  distributionId:
+    description: CloudFront distribution ID
+    value: ${{ steps.generate.outputs.distributionId }}
+  distributionUrlToInvalidate:
+    description: CloudFront invalidation path pattern
+    value: ${{ steps.generate.outputs.distributionUrlToInvalidate }}
+  appName:
+    description: Microfrontend app name
+    value: ${{ steps.generate.outputs.appName }}
+  stage:
+    description: SST stage
+    value: ${{ steps.generate.outputs.stage }}
+  workloadName:
+    description: Workload name
+    value: ${{ steps.generate.outputs.workloadName }}
+  distributionUrl:
+    description: Public URL for the microfrontend assets
+    value: ${{ steps.generate.outputs.distributionUrl }}
+runs:
+  using: composite
+  steps:
+    - name: Generate bucket variables
+      id: generate
+      shell: bash
+      # Source in this step shell so outputs use $GITHUB_OUTPUT (not deprecated ::set-output).
+      # https://github.blog/changelog/2022-10-11-github-actions-deprecating-save-state-and-set-output-commands/
+      run: source "${{ github.action_path }}/domains.sh"
+      env:
+        INPUT_SST_STAGE: ${{ inputs.sst-stage }}
+        INPUT_APP_NAME: ${{ inputs.app-name }}
+        INPUT_WORKLOAD_NAME: ${{ inputs.workload-name }}
