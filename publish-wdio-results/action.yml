@@ -68,14 +68,38 @@ runs:
       with:
         ref: gh-pages
         path: gh-pages
+    - name: Set up Java for Allure CLI
+      if: steps.test-conclusion.outputs.conclusion != 'success'
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '17'
+    - name: Install Allure CLI
+      if: steps.test-conclusion.outputs.conclusion != 'success'
+      shell: bash
+      run: |
+        ALLURE_INSTALL_DIR="${RUNNER_TEMP}/allure-cli"
+        mkdir -p "${ALLURE_INSTALL_DIR}"
+        # Install outside the consumer workspace so pnpm/npm lockfiles are untouched.
+        npm install --prefix "${ALLURE_INSTALL_DIR}" --no-fund --no-audit allure-commandline@2.46.1
+        echo "${ALLURE_INSTALL_DIR}/node_modules/.bin" >> "${GITHUB_PATH}"
     - name: Build Allure report
       if: steps.test-conclusion.outputs.conclusion != 'success'
-      uses: simple-elf/allure-report-action@master
-      with:
-        allure_results: ${{ inputs.allure_results }}
-        gh_pages: gh-pages
-        allure_report: allure-report
-        allure_history: allure-history
+      shell: bash
+      env:
+        ALLURE_RESULTS: ${{ inputs.allure_results }}
+        GH_PAGES: gh-pages
+        ALLURE_REPORT: allure-report
+        ALLURE_HISTORY: allure-history
+        KEEP_REPORTS: '20'
+        GITHUB_RUN_NUM: ${{ github.run_number }}
+        GITHUB_RUN_ID: ${{ github.run_id }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+        GITHUB_SERVER_URL: ${{ github.server_url }}
+      run: |
+        chmod +x "${{ github.action_path }}/generate-allure-history.sh"
+        "${{ github.action_path }}/generate-allure-history.sh"
     - name: Publish Allure report
       if: steps.test-conclusion.outputs.conclusion != 'success'
       uses: peaceiris/actions-gh-pages@v3
@@ -90,28 +114,28 @@ runs:
         script: |
           // For PRs, use the run number in the URL
           const allureUrl = `https://${context.repo.owner}.github.io/${context.repo.repo}/${process.env.RUN_NUMBER}/index.html`;
-          
+
           // Create comment body
           const commentBody = `## 🧪 WDIO Test Results
-          
+
           Tests failed! 📊 View the detailed Allure report here:
-          
+
           🔗 **Allure Report**: ${allureUrl}
-          
+
           This report contains detailed test results, screenshots, and execution history.`;
-          
+
           // Find existing comment from this workflow
           const comments = await github.rest.issues.listComments({
             issue_number: context.issue.number,
             owner: context.repo.owner,
             repo: context.repo.repo
           });
-          
-          const existingComment = comments.data.find(comment => 
-            comment.user.login === 'github-actions[bot]' && 
+
+          const existingComment = comments.data.find(comment =>
+            comment.user.login === 'github-actions[bot]' &&
             comment.body.includes('## 🧪 WDIO Test Results')
           );
-          
+
           if (existingComment) {
             // Update existing comment
             await github.rest.issues.updateComment({
