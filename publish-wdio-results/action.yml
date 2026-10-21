@@ -7,6 +7,22 @@ inputs:
   allure_results:
     description: Path to the Allure results directory
     required: true
+  report_name:
+    description: >-
+      Optional slug for the WDIO suite being published (for example `mfe` or `payment-link`).
+      When set, the report and its history live under `<report_name>/` on the gh-pages branch, and
+      the artifacts and PR comments carry the name, so several suites can publish from the same
+      workflow run without overwriting each other. Leave empty to publish at the gh-pages root.
+    required: false
+    default: ''
+  publish_report:
+    description: >-
+      When to build and publish the Allure report. `on-test-failure` (default) publishes unless the
+      JUnit results passed: on failed tests, and on an inconclusive run with no results. `always` publishes whenever the action runs; use it from a
+      step gated on `failure()`, so a suite whose scenarios were all skipped or that crashed before
+      writing results still gets a report.
+    required: false
+    default: on-test-failure
   github_token:
     description: GitHub token to use for the commit
     required: true
@@ -20,7 +36,7 @@ runs:
     - name: Upload Test Results
       uses: actions/upload-artifact@v7
       with:
-        name: test-results
+        name: ${{ inputs.report_name && format('test-results-{0}', inputs.report_name) || 'test-results' }}
         path: ${{ inputs.files }}
     - name: Publish Test Results
       id: test-results
@@ -30,14 +46,36 @@ runs:
         files: ${{ inputs.files }}
         check_run: false
         job_summary: false
-        comment_title: WDIO Test Results
+        comment_title: ${{ inputs.report_name && format('WDIO Test Results ({0})', inputs.report_name) || 'WDIO Test Results' }}
         action_fail_on_inconclusive: true
     - name: Get Test Conclusion
+      # Runs even when the results step failed (for example no JUnit file at all, which
+      # action_fail_on_inconclusive turns into a failure): that is a run whose report is wanted.
+      if: always()
       shell: bash
       id: test-conclusion
-      run: echo "conclusion=$(jq -r '.conclusion' <<< '${{ steps.test-results.outputs.json }}')" >> $GITHUB_OUTPUT
+      env:
+        PUBLISH_REPORT: ${{ inputs.publish_report }}
+        REPORT_NAME: ${{ inputs.report_name }}
+        TEST_RESULTS_JSON: ${{ steps.test-results.outputs.json }}
+      run: |
+        # report_name becomes a path under gh-pages, so it must be a single plain segment. Failing
+        # here leaves `publish` unset, which skips every step that builds or publishes the report.
+        if [ -n "$REPORT_NAME" ] && [[ ! "$REPORT_NAME" =~ ^[A-Za-z0-9_-]+$ ]]; then
+          echo "::error::report_name '$REPORT_NAME' must contain only letters, numbers, '_' or '-'"
+          exit 1
+        fi
+        conclusion=$(jq -r '.conclusion // "inconclusive"' <<< "${TEST_RESULTS_JSON:-null}")
+        echo "conclusion=$conclusion" >> $GITHUB_OUTPUT
+        if [ "$PUBLISH_REPORT" = 'always' ] || [ "$conclusion" != 'success' ]; then
+          echo "publish=true" >> $GITHUB_OUTPUT
+        else
+          echo "Test conclusion is '$conclusion' and publish_report is '$PUBLISH_REPORT': skipping the Allure report"
+          echo "publish=false" >> $GITHUB_OUTPUT
+        fi
     - name: Check for gh-pages branch
-      if: steps.test-conclusion.outputs.conclusion != 'success'
+      if: always() && steps.test-conclusion.outputs.publish == 'true'
+      id: gh-pages-branch
       shell: bash
       run: |
         if ! git ls-remote --exit-code --heads origin gh-pages; then
@@ -57,25 +95,32 @@ runs:
           # Add the actions-update remote using the bootstrap key
           git remote add actions-update https://x-access-token:${{ inputs.github_token }}@github.com/${{ github.repository }}.git
 
-          git push actions-update gh-pages --no-verify
+          # Another suite's job may have created the branch in the meantime; its branch is as
+          # good as ours, so only a push that leaves no gh-pages branch behind is a failure.
+          git push actions-update gh-pages --no-verify || git ls-remote --exit-code --heads actions-update gh-pages
 
           cd ..
           rm -rf gh-pages  # Clean up temporary folder
         fi
     - name: Load Allure report history
-      if: steps.test-conclusion.outputs.conclusion != 'success'
+      if: always() && steps.gh-pages-branch.outcome == 'success'
+      id: allure-history
       uses: actions/checkout@v6
       with:
         ref: gh-pages
         path: gh-pages
+        # The named-report publish pushes through this checkout's origin.
+        token: ${{ inputs.github_token }}
     - name: Set up Java for Allure CLI
-      if: steps.test-conclusion.outputs.conclusion != 'success'
+      if: always() && steps.allure-history.outcome == 'success'
+      id: allure-java
       uses: actions/setup-java@v4
       with:
         distribution: temurin
         java-version: '17'
     - name: Install Allure CLI
-      if: steps.test-conclusion.outputs.conclusion != 'success'
+      if: always() && steps.allure-java.outcome == 'success'
+      id: allure-cli
       shell: bash
       run: |
         ALLURE_INSTALL_DIR="${RUNNER_TEMP}/allure-cli"
@@ -84,56 +129,118 @@ runs:
         npm install --prefix "${ALLURE_INSTALL_DIR}" --no-fund --no-audit allure-commandline@2.46.1
         echo "${ALLURE_INSTALL_DIR}/node_modules/.bin" >> "${GITHUB_PATH}"
     - name: Build Allure report
-      if: steps.test-conclusion.outputs.conclusion != 'success'
+      if: always() && steps.allure-cli.outcome == 'success'
+      id: allure-build
       shell: bash
       env:
         ALLURE_RESULTS: ${{ inputs.allure_results }}
         GH_PAGES: gh-pages
         ALLURE_REPORT: allure-report
         ALLURE_HISTORY: allure-history
+        SUBFOLDER: ${{ inputs.report_name }}
+        REPORT_NAME: ${{ inputs.report_name && format('WDIO {0}', inputs.report_name) || '' }}
         KEEP_REPORTS: '20'
         GITHUB_RUN_NUM: ${{ github.run_number }}
         GITHUB_RUN_ID: ${{ github.run_id }}
         GITHUB_REPOSITORY: ${{ github.repository }}
         GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
         GITHUB_SERVER_URL: ${{ github.server_url }}
-      run: |
-        chmod +x "${{ github.action_path }}/generate-allure-history.sh"
-        "${{ github.action_path }}/generate-allure-history.sh"
+      run: bash "${{ github.action_path }}/generate-allure-history.sh"
+    - name: Upload Allure report
+      # The generated HTML report is also kept as a workflow artifact so it can be downloaded
+      # and served locally (`npx serve allure-report`) when GitHub Pages is not available.
+      if: always() && steps.allure-build.outcome == 'success'
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ inputs.report_name && format('allure-report-{0}', inputs.report_name) || 'allure-report' }}
+        path: allure-report
     - name: Publish Allure report
-      if: steps.test-conclusion.outputs.conclusion != 'success'
+      # Without report_name the whole gh-pages branch is replaced by the generated history.
+      if: always() && steps.allure-build.outcome == 'success' && inputs.report_name == ''
       uses: peaceiris/actions-gh-pages@v3
       with:
         github_token: ${{ inputs.github_token }}
         publish_branch: gh-pages
         publish_dir: allure-history
+    - name: Publish Allure report to its folder
+      # Several suites can reach this step at the same time. Each one only replaces its own
+      # <report_name>/ folder, so the only thing they can race on is the push itself: a push
+      # rejected as non-fast-forward is retried from a fresh fetch of gh-pages.
+      if: always() && steps.allure-build.outcome == 'success' && inputs.report_name != ''
+      shell: bash
+      env:
+        REPORT_NAME: ${{ inputs.report_name }}
+        RUN_NUMBER: ${{ github.run_number }}
+      run: |
+        set -euo pipefail
+        cd gh-pages
+        git config user.name 'github-actions[bot]'
+        git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+        # The commit the report history was generated from. Run folders that were there and are
+        # gone from the generated history were pruned by KEEP_REPORTS; anything that appears on
+        # gh-pages after this commit was published by another job meanwhile and is kept.
+        history_base=$(git rev-parse HEAD)
+        for attempt in 1 2 3 4 5; do
+          git fetch origin gh-pages
+          git reset -q --hard FETCH_HEAD
+          mkdir -p "$REPORT_NAME"
+          for entry in $(git ls-tree --name-only "$history_base:$REPORT_NAME/" 2>/dev/null); do
+            [ -e "../allure-history/$REPORT_NAME/$entry" ] || rm -rf "$REPORT_NAME/$entry"
+          done
+          cp -r "../allure-history/$REPORT_NAME/." "$REPORT_NAME/"
+          touch .nojekyll
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Nothing to publish for $REPORT_NAME"
+            exit 0
+          fi
+          git commit -q -m "Allure report for $REPORT_NAME, run $RUN_NUMBER"
+          if git push origin HEAD:gh-pages; then
+            exit 0
+          fi
+          echo "Push to gh-pages rejected (attempt $attempt of 5), retrying from a fresh fetch"
+          sleep $((attempt * 5))
+        done
+        echo "::error::Could not publish the $REPORT_NAME Allure report to gh-pages after 5 attempts"
+        exit 1
     - name: Comment GitHub Pages URL
-      if: github.event_name == 'pull_request' && steps.test-conclusion.outputs.conclusion != 'success'
+      # Posts whenever a report was built, so the artifact link is there even if the gh-pages
+      # push did not go through.
+      if: always() && github.event_name == 'pull_request' && steps.allure-build.outcome == 'success'
       uses: actions/github-script@v7
       with:
         script: |
+          const reportName = process.env.REPORT_NAME;
+          const commentHeading = reportName ? `## 🧪 WDIO Test Results (${reportName})` : '## 🧪 WDIO Test Results';
+          const reportPath = reportName ? `${reportName}/` : '';
+          const artifactName = reportName ? `allure-report-${reportName}` : 'allure-report';
+
           // For PRs, use the run number in the URL
-          const allureUrl = `https://${context.repo.owner}.github.io/${context.repo.repo}/${process.env.RUN_NUMBER}/index.html`;
+          const allureUrl = `https://${context.repo.owner}.github.io/${context.repo.repo}/${reportPath}${process.env.RUN_NUMBER}/index.html`;
+          const artifactsUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}#artifacts`;
 
           // Create comment body
-          const commentBody = `## 🧪 WDIO Test Results
+          const commentBody = `${commentHeading}
 
-          Tests failed! 📊 View the detailed Allure report here:
+          ${process.env.CONCLUSION === 'success' ? 'Tests passed.' : 'Tests failed!'} 📊 View the detailed Allure report here:
 
           🔗 **Allure Report**: ${allureUrl}
 
-          This report contains detailed test results, screenshots, and execution history.`;
+          This report contains detailed test results, screenshots, and execution history.
 
-          // Find existing comment from this workflow
-          const comments = await github.rest.issues.listComments({
+          If that link returns a GitHub Pages 404, GitHub Pages is not enabled for this repository (Settings → Pages → Deploy from branch \`gh-pages\`). The same report is attached to the run as the \`${artifactName}\` artifact: ${artifactsUrl}`;
+
+          // Find this suite's existing comment. The whole first line is compared, so the unnamed
+          // report's comment never matches a named suite's one.
+          const comments = await github.paginate(github.rest.issues.listComments, {
             issue_number: context.issue.number,
             owner: context.repo.owner,
             repo: context.repo.repo
           });
 
-          const existingComment = comments.data.find(comment =>
+          const existingComment = comments.find(comment =>
             comment.user.login === 'github-actions[bot]' &&
-            comment.body.includes('## 🧪 WDIO Test Results')
+            comment.body.split('\n')[0].trim() === commentHeading
           );
 
           if (existingComment) {
@@ -155,3 +262,5 @@ runs:
           }
       env:
         RUN_NUMBER: ${{ github.run_number }}
+        REPORT_NAME: ${{ inputs.report_name }}
+        CONCLUSION: ${{ steps.test-conclusion.outputs.conclusion }}

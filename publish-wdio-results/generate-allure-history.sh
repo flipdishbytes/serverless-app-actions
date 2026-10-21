@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 # Generate an Allure report with history for GitHub Pages.
 # Replaces simple-elf/allure-report-action (Docker / public ECR) with a runner-local CLI.
+# SUBFOLDER (optional) keeps the report and its history under gh-pages/<SUBFOLDER>/, so several
+# suites can publish from one repository without overwriting each other.
 set -euo pipefail
 
 ALLURE_RESULTS="${ALLURE_RESULTS:?ALLURE_RESULTS is required}"
 GH_PAGES="${GH_PAGES:?GH_PAGES is required}"
 ALLURE_REPORT="${ALLURE_REPORT:-allure-report}"
 ALLURE_HISTORY="${ALLURE_HISTORY:-allure-history}"
+SUBFOLDER="${SUBFOLDER:-}"
 KEEP_REPORTS="${KEEP_REPORTS:-20}"
 GITHUB_RUN_NUM="${GITHUB_RUN_NUM:?GITHUB_RUN_NUM is required}"
 GITHUB_RUN_ID="${GITHUB_RUN_ID:?GITHUB_RUN_ID is required}"
@@ -19,15 +22,24 @@ REPOSITORY_NAME="${GITHUB_REPOSITORY##*/}"
 GITHUB_PAGES_WEBSITE_URL="https://${GITHUB_REPOSITORY_OWNER}.github.io/${REPOSITORY_NAME}"
 
 mkdir -p "./${GH_PAGES}" "./${ALLURE_HISTORY}" "./${ALLURE_RESULTS}"
-cp -R "./${GH_PAGES}/." "./${ALLURE_HISTORY}/" 2>/dev/null || true
+# No `|| true`: the publish step deletes gh-pages runs missing from this copy, so a failed copy must stop here.
+cp -R "./${GH_PAGES}/." "./${ALLURE_HISTORY}/"
+
+if [[ -n "${SUBFOLDER}" ]]; then
+  ALLURE_HISTORY="${ALLURE_HISTORY}/${SUBFOLDER}"
+  GH_PAGES="${GH_PAGES}/${SUBFOLDER}"
+  GITHUB_PAGES_WEBSITE_URL="${GITHUB_PAGES_WEBSITE_URL}/${SUBFOLDER}"
+  mkdir -p "./${ALLURE_HISTORY}"
+fi
 
 echo "keep reports count ${KEEP_REPORTS}"
 (
   cd "./${ALLURE_HISTORY}"
   rm -rf index.html last-history
-  mapfile -t REPORTS < <(ls 2>/dev/null | sort -n | grep -E '^[0-9]+$' || true)
-  if ((${#REPORTS[@]} > KEEP_REPORTS)); then
-    REMOVE_COUNT=$((${#REPORTS[@]} - KEEP_REPORTS))
+  # Leave room for this run's report, which is (re)written below.
+  mapfile -t REPORTS < <(ls 2>/dev/null | grep -E '^[0-9]+$' | grep -vx "${GITHUB_RUN_NUM}" | sort -n || true)
+  if ((${#REPORTS[@]} >= KEEP_REPORTS)); then
+    REMOVE_COUNT=$((${#REPORTS[@]} - KEEP_REPORTS + 1))
     echo "removing ${REMOVE_COUNT} old report(s)"
     rm -rf "${REPORTS[@]:0:REMOVE_COUNT}"
   fi

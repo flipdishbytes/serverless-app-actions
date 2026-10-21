@@ -90,3 +90,8 @@ jobs:
           allure_results: packages/frontend/e2e/wdio/reports/allure-results
           github_token: ${{ secrets.GITHUB_TOKEN }}
 ```
+
+`publish-wdio-results` takes two optional inputs:
+
+- `report_name`: a slug such as `mfe` or `payment-link` (letters, numbers, `_` and `-` only). The report and its history are published under `<report_name>/` on `gh-pages`, and the artifacts and PR comments carry the name, so several WDIO suites can publish from the same workflow run. Leave it empty to publish at the `gh-pages` root (the default).
+- `publish_report`: `on-test-failure` (default) builds the Allure report unless the JUnit results passed (failed tests, or no results at all); `always` builds it whenever the step runs. Use `always` from a step gated on `failure()`, so a suite that crashed before writing results still gets a report.
