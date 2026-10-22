@@ -16,7 +16,7 @@ inputs:
   cache-duration:
     required: false
     default: '86400'
-    description: Cache duration in seconds 
+    description: Cache duration in seconds
 runs:
   using: composite
   steps:
@@ -27,7 +27,7 @@ runs:
         aws s3 sync --delete . s3://${{ inputs.bucket-url }} \
           --exclude '.vite/manifest.json' \
           --cache-control 'public,max-age=${{ inputs.cache-duration }}'
-        
+
         # Then sync manifest.json with no-cache headers
         aws s3 cp ./.vite/manifest.json s3://${{ inputs.bucket-url }}/.vite/manifest.json --cache-control 'max-age=0, must-revalidate, s-maxage=${{ inputs.cache-duration }}'
       working-directory: ${{ inputs.working-directory }}
